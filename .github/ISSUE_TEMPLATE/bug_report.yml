@@ -1,0 +1,32 @@
+name: Bug report
+description: Report a reproducible danmaku-engine defect.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Problem
+      description: Describe the incorrect pool, scheduler, lane, preset, or track behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Provide TypeScript calls, stage size, tick sequence, expected slot state, and actual state.
+      render: ts
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Package version
+      placeholder: "@vectojs/danmaku-core@0.1.0"
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Behavior impact
+      description: Note whether lane assignment, culling, timing/track sync, or preset motion are affected.

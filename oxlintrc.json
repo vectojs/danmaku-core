@@ -1,0 +1,7 @@
+{
+  "rules": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "error"
+  }
+}

@@ -1,0 +1,24 @@
+name: Feature request
+description: Propose a danmaku-engine capability.
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and user intent
+      description: Explain the danmaku simulation, scheduling, or timing gap.
+    validations:
+      required: true
+  - type: textarea
+    id: contract
+    attributes:
+      label: Proposed engine contract
+      description: Describe the pure TypeScript API and slot/track behavior without renderer, Canvas, DOM, or browser assumptions.
+    validations:
+      required: true
+  - type: textarea
+    id: cases
+    attributes:
+      label: Required cases
+      description: List edge cases — lane exhaustion, culling, seek/loop, playback rate, empty content sampler.
