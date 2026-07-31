@@ -1,14 +1,14 @@
 export type PresetId =
-  | "scroll"
-  | "reverse"
-  | "top"
-  | "bottom"
-  | "sine"
-  | "rotation"
-  | "glitch"
-  | "repulsion";
+  | 'scroll'
+  | 'reverse'
+  | 'top'
+  | 'bottom'
+  | 'sine'
+  | 'rotation'
+  | 'glitch'
+  | 'repulsion';
 
-export type ShowcasePresetId = "physics" | "jelly";
+export type ShowcasePresetId = 'physics' | 'jelly';
 
 export interface DanmakuParams {
   text: string;
@@ -90,26 +90,26 @@ export const DEFAULT_EFFECTS: CharacterEffects = {
 
 export function createDefaultParams(): DanmakuParams {
   return {
-    text: "",
-    color: "#f1f5f9",
+    text: '',
+    color: '#f1f5f9',
     fontSize: 24,
     speed: 200,
     opacity: 0.9,
-    preset: "scroll",
+    preset: 'scroll',
     presetParams: {},
     effects: { ...DEFAULT_EFFECTS },
   };
 }
 
 export const PRESET_COLORS: Record<PresetId | ShowcasePresetId, string> = {
-  scroll: "#f1f5f9",
-  reverse: "#60a5fa",
-  top: "#fbbf24",
-  bottom: "#34d399",
-  sine: "#a78bfa",
-  rotation: "#f472b6",
-  glitch: "rgba(255,100,100,0.9)",
-  repulsion: "#22d3ee",
-  physics: "#fb923c",
-  jelly: "#c084fc",
+  scroll: '#f1f5f9',
+  reverse: '#60a5fa',
+  top: '#fbbf24',
+  bottom: '#34d399',
+  sine: '#a78bfa',
+  rotation: '#f472b6',
+  glitch: 'rgba(255,100,100,0.9)',
+  repulsion: '#22d3ee',
+  physics: '#fb923c',
+  jelly: '#c084fc',
 };

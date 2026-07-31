@@ -1,11 +1,6 @@
-import type {
-  PresetId,
-  PresetState,
-  DanmakuParams,
-  CharacterEffects,
-} from "./types";
-import { DanmakuPool } from "./DanmakuPool";
-import { PRESETS } from "./presets";
+import type { PresetId, PresetState, DanmakuParams, CharacterEffects } from './types';
+import { DanmakuPool } from './DanmakuPool';
+import { PRESETS } from './presets';
 
 /** Options for {@link Scheduler}. */
 export interface SchedulerOptions {
@@ -39,10 +34,10 @@ interface LaneState {
 let sharedMeasureCtx: CanvasRenderingContext2D | null = null;
 
 function measureWidth(text: string, fontSize: number): number {
-  if (typeof document === "undefined") return text.length * fontSize * 0.6;
+  if (typeof document === 'undefined') return text.length * fontSize * 0.6;
   if (!sharedMeasureCtx) {
-    const canvas = document.createElement("canvas");
-    sharedMeasureCtx = canvas.getContext("2d");
+    const canvas = document.createElement('canvas');
+    sharedMeasureCtx = canvas.getContext('2d');
   }
   if (!sharedMeasureCtx) return text.length * fontSize * 0.6;
   sharedMeasureCtx.font = `400 ${fontSize}px system-ui, sans-serif`;
@@ -67,12 +62,7 @@ const MIN_SPAWN_GAP = 50;
 const FONT_TIERS = [18, 24, 30];
 
 function isScrollPreset(preset: PresetId): boolean {
-  return (
-    preset === "scroll" ||
-    preset === "reverse" ||
-    preset === "glitch" ||
-    preset === "sine"
-  );
+  return preset === 'scroll' || preset === 'reverse' || preset === 'glitch' || preset === 'sine';
 }
 
 export class Scheduler {
@@ -112,7 +102,7 @@ export class Scheduler {
     this.stageHeight = stageHeight;
     this.targetCount = targetCount;
     this.spawnRate = DEFAULT_SPAWN_RATE;
-    this.textSampler = options.textSampler ?? (() => "");
+    this.textSampler = options.textSampler ?? (() => '');
     this._computeLanes();
   }
 
@@ -188,14 +178,12 @@ export class Scheduler {
           slot.params.presetParams.gravity = 600 + Math.random() * 400;
         }
         const seconds = dt / 1000;
-        slot.params.presetParams.vy +=
-          slot.params.presetParams.gravity * seconds;
+        slot.params.presetParams.vy += slot.params.presetParams.gravity * seconds;
         slot.y += slot.params.presetParams.vy * seconds;
         const ground = H - 80;
         if (slot.y > ground) {
           slot.y = ground;
-          slot.params.presetParams.vy =
-            -Math.abs(slot.params.presetParams.vy) * 0.7;
+          slot.params.presetParams.vy = -Math.abs(slot.params.presetParams.vy) * 0.7;
         }
       }
 
@@ -207,7 +195,7 @@ export class Scheduler {
       if (isScrollPreset(slot.params.preset)) {
         const ls = this.lanes[slot.lane];
         if (ls) {
-          const isRev = slot.params.preset === "reverse";
+          const isRev = slot.params.preset === 'reverse';
           const rightEdge = slot.x + slot.width;
           const leftEdge = slot.x;
 
@@ -261,10 +249,10 @@ export class Scheduler {
     slot.userSent = userSent;
     slot.width = measureWidth(params.text, params.fontSize);
     switch (params.preset) {
-      case "scroll":
+      case 'scroll':
         slot.x = this.stageWidth + 20;
         break;
-      case "reverse":
+      case 'reverse':
         slot.x = -slot.width - 20;
         break;
       default:
@@ -284,14 +272,14 @@ export class Scheduler {
     // once per tier per frame. Visual size variety is preserved.
     const fontSize = FONT_TIERS[Math.floor(Math.random() * FONT_TIERS.length)];
     const slateColors = [
-      "#f8fafc",
-      "#cbd5e1",
-      "#94a3b8",
-      "#38bdf8",
-      "#60a5fa",
-      "#818cf8",
-      "#a78bfa",
-      "#34d399",
+      '#f8fafc',
+      '#cbd5e1',
+      '#94a3b8',
+      '#38bdf8',
+      '#60a5fa',
+      '#818cf8',
+      '#a78bfa',
+      '#34d399',
     ];
     const color = slateColors[Math.floor(Math.random() * slateColors.length)];
     const params: DanmakuParams = {
@@ -325,11 +313,10 @@ export class Scheduler {
     if (!ls) return;
     ls.occupied = true;
     if (isScrollPreset(slot.params.preset)) {
-      ls.trailingX =
-        slot.params.preset === "reverse" ? slot.x : slot.x + slot.width;
+      ls.trailingX = slot.params.preset === 'reverse' ? slot.x : slot.x + slot.width;
       ls.width = slot.width;
       ls.speed = slot.params.speed;
-      ls.isReverse = slot.params.preset === "reverse";
+      ls.isReverse = slot.params.preset === 'reverse';
     }
   }
 
@@ -363,11 +350,7 @@ export class Scheduler {
    *      If the new is slower or equal-speed, the gap never closes and the
    *      lane is unconditionally safe (subject to rule 1).
    */
-  private _isLaneSafe(
-    lane: number,
-    newSpeed: number,
-    isReverse: boolean,
-  ): boolean {
+  private _isLaneSafe(lane: number, newSpeed: number, isReverse: boolean): boolean {
     const ls = this.lanes[lane];
     if (!ls.occupied) return true;
 
@@ -387,8 +370,7 @@ export class Scheduler {
       // Both move right. New right edge at -20. Old left edge at trailingX - width.
       // gap = old left edge - new right edge
       gap = ls.trailingX - ls.width + 20;
-      exitTime =
-        (this.stageWidth + CULL_MARGIN - (ls.trailingX - ls.width)) / ls.speed;
+      exitTime = (this.stageWidth + CULL_MARGIN - (ls.trailingX - ls.width)) / ls.speed;
     } else {
       // Both move left. New left edge at stageWidth + 20. Old right edge at trailingX + width.
       // gap = new left edge - old right edge
@@ -408,17 +390,17 @@ export class Scheduler {
 
   private _assignLane(presetId: PresetId): number {
     if (
-      presetId === "top" ||
-      presetId === "bottom" ||
-      presetId === "rotation" ||
-      presetId === "repulsion"
+      presetId === 'top' ||
+      presetId === 'bottom' ||
+      presetId === 'rotation' ||
+      presetId === 'repulsion'
     ) {
       return Math.floor(Math.random() * this.lanes.length);
     }
     if (this.lanes.length === 0) return -1;
 
     const n = this.lanes.length;
-    const isReverse = presetId === "reverse";
+    const isReverse = presetId === 'reverse';
 
     // Pass 1: free lane (round-robin)
     for (let k = 0; k < n; k++) {

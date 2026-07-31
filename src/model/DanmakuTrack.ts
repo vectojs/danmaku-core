@@ -1,4 +1,4 @@
-import type { TimedDanmakuEntry } from "./types";
+import type { TimedDanmakuEntry } from './types';
 
 /**
  * Drives pre-authored, timestamp-pinned danmaku in lockstep with video
@@ -74,10 +74,7 @@ export class DanmakuTrack {
     }
     this._lastTime = t;
     const fired: TimedDanmakuEntry[] = [];
-    while (
-      this._cursor < this.entries.length &&
-      this.entries[this._cursor].time <= t
-    ) {
+    while (this._cursor < this.entries.length && this.entries[this._cursor].time <= t) {
       fired.push(this.entries[this._cursor]);
       this._cursor++;
     }

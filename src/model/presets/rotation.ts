@@ -1,12 +1,6 @@
-import type { PresetFn } from "../types";
+import type { PresetFn } from '../types';
 
-export const rotation: PresetFn = (
-  slot,
-  dt,
-  _state,
-  _stageWidth,
-  stageHeight,
-) => {
+export const rotation: PresetFn = (slot, dt, _state, _stageWidth, stageHeight) => {
   const seconds = dt / 1000;
   slot.x -= slot.params.speed * seconds;
   slot.y = stageHeight * 0.5;

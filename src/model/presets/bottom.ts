@@ -1,4 +1,4 @@
-import type { PresetFn } from "../types";
+import type { PresetFn } from '../types';
 
 export const bottom: PresetFn = (slot, dt, _state, stageWidth, stageHeight) => {
   slot.age += dt;

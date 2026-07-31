@@ -1,4 +1,4 @@
-import type { TimedDanmakuEntry, PresetId } from "./types";
+import type { TimedDanmakuEntry, PresetId } from './types';
 
 /** Options for {@link generateTimedTrack}. */
 export interface GenerateTimedTrackOptions {
@@ -17,14 +17,14 @@ export interface GenerateTimedTrackOptions {
 }
 
 const ALL_PRESETS: PresetId[] = [
-  "scroll",
-  "reverse",
-  "top",
-  "bottom",
-  "sine",
-  "rotation",
-  "glitch",
-  "repulsion",
+  'scroll',
+  'reverse',
+  'top',
+  'bottom',
+  'sine',
+  'rotation',
+  'glitch',
+  'repulsion',
 ];
 
 /**
@@ -62,8 +62,7 @@ export function generateTimedTrack(
       const peak = peaks[Math.floor(Math.random() * peaks.length)];
       const u = Math.random() || 0.0001;
       const v = Math.random() || 0.0001;
-      const spread =
-        Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v) * 3.5;
+      const spread = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v) * 3.5;
       time = Math.max(0.1, Math.min(duration - 0.5, peak + spread));
     } else {
       time = 0.1 + Math.random() * (duration - 0.6);

@@ -1,4 +1,4 @@
-import type { PresetFn } from "../types";
+import type { PresetFn } from '../types';
 
 const LINE_HEIGHT = 36;
 const LANE_GAP = 4;

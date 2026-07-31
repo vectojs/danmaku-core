@@ -1,8 +1,4 @@
-import {
-  createDefaultParams,
-  type DanmakuParams,
-  type PoolSlot,
-} from "./types";
+import { createDefaultParams, type DanmakuParams, type PoolSlot } from './types';
 
 export class DanmakuPool {
   readonly capacity: number;
