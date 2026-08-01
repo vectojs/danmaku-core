@@ -24,6 +24,8 @@ export const repulsion: PresetFn = (slot, dt, state, _stageWidth) => {
   const dist = Math.sqrt(dx * dx + dy * dy);
   if (dist < REPULSE_RADIUS && dist > 0) {
     const force = (1 - dist / REPULSE_RADIUS) * REPULSE_STRENGTH;
+    const normalizedForce = force / REPULSE_STRENGTH;
+    slot.jellyVelocity = Math.min(4, slot.jellyVelocity + normalizedForce * seconds * 8);
     slot.x += (dx / dist) * force * seconds;
     slot.y = baseY + (dy / dist) * force * seconds;
   } else {

@@ -70,6 +70,23 @@ function frame(dtMs: number) {
 }
 ```
 
+### Jelly squash/stretch
+
+```ts
+const pool = new DanmakuPool(20_000);
+const scheduler = new Scheduler(pool, width, height, 5_000);
+scheduler.showcaseJelly = true;
+
+// Optional application impulse, for example after drag release.
+scheduler.exciteJelly(slot.id, 0.45);
+```
+
+Renderers read `jellyScaleX` and `jellyScaleY` from each active `PoolSlot` and apply
+them as squash/stretch multipliers. The deterministic spring integration allocates
+nothing per frame. Setting `showcaseJelly` to `false` resets every active slot to the
+exact neutral state (`jellyScaleX = 1`, `jellyScaleY = 1`, and `jellyVelocity = 0`) on
+the next scheduler tick.
+
 ### Video-synced playback
 
 ```ts

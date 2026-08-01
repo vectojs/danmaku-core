@@ -1,12 +1,12 @@
-import { describe, expect, it } from "bun:test";
-import { DanmakuPool } from "../src/model/DanmakuPool";
-import { Scheduler } from "../src/model/Scheduler";
-import { createDefaultParams, type PresetId } from "../src/model/types";
+import { describe, expect, it } from 'bun:test';
+import { DanmakuPool } from '../src/model/DanmakuPool';
+import { Scheduler } from '../src/model/Scheduler';
+import { createDefaultParams, type PresetId } from '../src/model/types';
 
-describe("Scheduler", () => {
-  const preset: PresetId = "scroll";
+describe('Scheduler', () => {
+  const preset: PresetId = 'scroll';
 
-  it("spawns danmaku respecting maxCount ceiling", () => {
+  it('spawns danmaku respecting maxCount ceiling', () => {
     const pool = new DanmakuPool(100);
     const sched = new Scheduler(pool, 1920, 1080, 50);
     sched.tick(16, preset, {
@@ -18,35 +18,35 @@ describe("Scheduler", () => {
     expect(pool.activeCount).toBeLessThanOrEqual(50);
   });
 
-  it("userSpawn() adds a danmaku with given text", () => {
+  it('userSpawn() adds a danmaku with given text', () => {
     const pool = new DanmakuPool(100);
     const sched = new Scheduler(pool, 1920, 1080, 100);
-    sched.userSpawn({ ...createDefaultParams(), text: "user message", preset });
+    sched.userSpawn({ ...createDefaultParams(), text: 'user message', preset });
     expect(pool.activeCount).toBe(1);
-    expect(pool.slots.find((s) => s.active)!.params.text).toBe("user message");
+    expect(pool.slots.find((s) => s.active)!.params.text).toBe('user message');
   });
 
-  it("stress-spawns text from the injected textSampler", () => {
+  it('stress-spawns text from the injected textSampler', () => {
     const pool = new DanmakuPool(100);
     const sched = new Scheduler(pool, 1920, 1080, 50, {
-      textSampler: () => "INJECTED",
+      textSampler: () => 'INJECTED',
     });
     sched.tick(16, preset, { cursorX: 0, cursorY: 0, pointerActive: false });
     const spawned = pool.slots.filter((s) => s.active);
     expect(spawned.length).toBeGreaterThan(0);
     // Every auto-spawned danmaku takes its text from the sampler.
-    expect(spawned.every((s) => s.params.text === "INJECTED")).toBe(true);
+    expect(spawned.every((s) => s.params.text === 'INJECTED')).toBe(true);
   });
 
-  it("defaults to empty text when no sampler is provided", () => {
+  it('defaults to empty text when no sampler is provided', () => {
     const pool = new DanmakuPool(100);
     const sched = new Scheduler(pool, 1920, 1080, 50);
     sched.tick(16, preset, { cursorX: 0, cursorY: 0, pointerActive: false });
     const spawned = pool.slots.filter((s) => s.active);
-    expect(spawned.every((s) => s.params.text === "")).toBe(true);
+    expect(spawned.every((s) => s.params.text === '')).toBe(true);
   });
 
-  it("respects targetCount when filling", () => {
+  it('respects targetCount when filling', () => {
     const pool = new DanmakuPool(200);
     const sched = new Scheduler(pool, 1920, 1080, 100);
     for (let i = 0; i < 30; i++) {
@@ -60,19 +60,19 @@ describe("Scheduler", () => {
     expect(pool.activeCount).toBeLessThanOrEqual(100);
   });
 
-  it("deactivates danmaku that leave the viewport (targetCount=0 = no refill)", () => {
+  it('deactivates danmaku that leave the viewport (targetCount=0 = no refill)', () => {
     const pool = new DanmakuPool(100);
     const sched = new Scheduler(pool, 1920, 1080, 0);
     sched.userSpawn({
       ...createDefaultParams(),
-      text: "AAAA",
-      preset: "scroll",
+      text: 'AAAA',
+      preset: 'scroll',
       speed: 1000,
     });
     sched.userSpawn({
       ...createDefaultParams(),
-      text: "BBBB",
-      preset: "scroll",
+      text: 'BBBB',
+      preset: 'scroll',
       speed: 1000,
     });
     expect(pool.activeCount).toBe(2);
@@ -85,11 +85,11 @@ describe("Scheduler", () => {
     expect(pool.activeCount).toBe(0);
   });
 
-  it("assigns valid lane indices (non-negative, in bounds)", () => {
+  it('assigns valid lane indices (non-negative, in bounds)', () => {
     const pool = new DanmakuPool(100);
     const sched = new Scheduler(pool, 1920, 1080, 10);
     for (let i = 0; i < 30; i++) {
-      sched.tick(16, "scroll", {
+      sched.tick(16, 'scroll', {
         cursorX: 0,
         cursorY: 0,
         pointerActive: false,
@@ -102,7 +102,7 @@ describe("Scheduler", () => {
     }
   });
 
-  it("setTargetCount changes the ceiling live", () => {
+  it('setTargetCount changes the ceiling live', () => {
     const pool = new DanmakuPool(200);
     const sched = new Scheduler(pool, 1920, 1080, 50);
     for (let i = 0; i < 20; i++) {
@@ -125,10 +125,10 @@ describe("Scheduler", () => {
     expect(pool.activeCount).toBeLessThanOrEqual(150);
   });
 
-  it("lane assignment selects safe lanes or falls back gracefully", () => {
+  it('lane assignment selects safe lanes or falls back gracefully', () => {
     const pool = new DanmakuPool(10);
     const sched = new Scheduler(pool, 1000, 360, 5); // has 9 lanes
-    const lane1 = (sched as any)._assignLane("scroll");
+    const lane1 = (sched as any)._assignLane('scroll');
     expect(lane1).toBeGreaterThanOrEqual(0);
 
     // Occupy all lanes with far-right values to simulate congestion (gap > 800)
@@ -138,8 +138,58 @@ describe("Scheduler", () => {
     }
 
     // Congested lanes should trigger fallback behavior
-    const fallbackLane = (sched as any)._assignLane("scroll");
+    const fallbackLane = (sched as any)._assignLane('scroll');
     expect(fallbackLane).toBeGreaterThanOrEqual(0);
     expect(fallbackLane).toBeLessThan((sched as any).lanes.length);
+  });
+  it('excites and settles Jelly state deterministically', () => {
+    const pool = new DanmakuPool(1);
+    const scheduler = new Scheduler(pool, 640, 360, 0);
+    scheduler.showcaseJelly = true;
+    scheduler.userSpawn({ ...createDefaultParams(), text: 'jelly', preset: 'scroll' });
+    const slot = pool.slots.find((candidate) => candidate.active)!;
+
+    expect(slot.jellyVelocity).not.toBe(0);
+    for (let i = 0; i < 240; i++) {
+      scheduler.tick(1000 / 120, 'scroll', {
+        cursorX: 0,
+        cursorY: 0,
+        pointerActive: false,
+      });
+    }
+
+    expect(slot.jellyScaleX).toBeCloseTo(1, 2);
+    expect(slot.jellyScaleY).toBeCloseTo(1, 2);
+    expect(slot.jellyVelocity).toBeCloseTo(0, 1);
+  });
+
+  it('clamps Jelly impulses to a bounded scale range', () => {
+    const pool = new DanmakuPool(1);
+    const scheduler = new Scheduler(pool, 640, 360, 0);
+    scheduler.showcaseJelly = true;
+    scheduler.userSpawn({ ...createDefaultParams(), text: 'jelly', preset: 'scroll' });
+    const slot = pool.slots.find((candidate) => candidate.active)!;
+
+    for (let i = 0; i < 20; i++) scheduler.exciteJelly(slot.id, 1);
+    scheduler.tick(16, 'scroll', { cursorX: 0, cursorY: 0, pointerActive: false });
+
+    expect(slot.jellyScaleX).toBeGreaterThanOrEqual(0.68);
+    expect(slot.jellyScaleX).toBeLessThanOrEqual(1.32);
+    expect(slot.jellyScaleY).toBeGreaterThanOrEqual(0.68);
+    expect(slot.jellyScaleY).toBeLessThanOrEqual(1.32);
+  });
+
+  it('returns Jelly state to rest immediately when the showcase is disabled', () => {
+    const pool = new DanmakuPool(1);
+    const scheduler = new Scheduler(pool, 640, 360, 0);
+    scheduler.showcaseJelly = true;
+    scheduler.userSpawn({ ...createDefaultParams(), text: 'jelly', preset: 'scroll' });
+    const slot = pool.slots.find((candidate) => candidate.active)!;
+    scheduler.showcaseJelly = false;
+
+    scheduler.tick(16, 'scroll', { cursorX: 0, cursorY: 0, pointerActive: false });
+    expect(slot.jellyScaleX).toBe(1);
+    expect(slot.jellyScaleY).toBe(1);
+    expect(slot.jellyVelocity).toBe(0);
   });
 });

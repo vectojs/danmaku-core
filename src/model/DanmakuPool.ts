@@ -92,6 +92,9 @@ export class DanmakuPool {
     s.opacity = 1;
     s.age = 0;
     s.lane = 0;
+    s.jellyScaleX = 1;
+    s.jellyScaleY = 1;
+    s.jellyVelocity = 0;
     s.hovered = false;
     s.liked = false;
     s.dragging = false;
@@ -111,6 +114,9 @@ export class DanmakuPool {
       opacity: 1,
       age: 0,
       lane: 0,
+      jellyScaleX: 1,
+      jellyScaleY: 1,
+      jellyVelocity: 0,
       charAngles: new Float64Array(64),
     };
   }

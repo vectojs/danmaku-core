@@ -1,4 +1,4 @@
-import type { PresetId, PresetState, DanmakuParams, CharacterEffects } from './types';
+import type { CharacterEffects, DanmakuParams, PoolSlot, PresetId, PresetState } from './types';
 import { DanmakuPool } from './DanmakuPool';
 import { PRESETS } from './presets';
 
@@ -17,6 +17,12 @@ const LINE_HEIGHT = 36;
 const LANE_GAP = 4;
 const DEFAULT_SPAWN_RATE = 300;
 const LANE_SAFETY_MARGIN = 1.3;
+const JELLY_STIFFNESS = 180;
+const JELLY_DAMPING = 18;
+const JELLY_MAX_OFFSET = 0.32;
+const JELLY_MIN_SCALE = Math.round((1 - JELLY_MAX_OFFSET) * 100) / 100;
+const JELLY_MAX_SCALE = Math.round((1 + JELLY_MAX_OFFSET) * 100) / 100;
+const JELLY_IMPULSE_SCALE = 12;
 
 interface LaneState {
   occupied: boolean;
@@ -75,6 +81,7 @@ export class Scheduler {
   private spawnAccumulator = 0;
   private _laneRoundRobin = 0;
   showcasePhysics = false;
+  showcaseJelly = false;
   /**
    * "Brush" effects stamped onto each stress-spawned danmaku at creation.
    * Acts like a paint brush: toggling an effect in the panel changes what
@@ -126,6 +133,14 @@ export class Scheduler {
 
   get rate(): number {
     return this.spawnRate;
+  }
+  exciteJelly(slotId: number, impulse = 0.24): boolean {
+    if (slotId < 0 || slotId >= this.pool.capacity) return false;
+    const slot = this.pool.slots[slotId]!;
+    if (!slot.active) return false;
+    const bounded = Math.max(-1, Math.min(1, impulse));
+    slot.jellyVelocity += bounded * JELLY_IMPULSE_SCALE;
+    return true;
   }
 
   /** Current stage width in px (used by the render layer for frustum culling). */
@@ -186,6 +201,7 @@ export class Scheduler {
           slot.params.presetParams.vy = -Math.abs(slot.params.presetParams.vy) * 0.7;
         }
       }
+      this._stepJelly(slot, dt);
 
       if (slot.x + slot.width < -CULL_MARGIN || slot.x > W + CULL_MARGIN) {
         this.pool.deactivate(i);
@@ -259,7 +275,30 @@ export class Scheduler {
         slot.x = this.stageWidth + 20;
     }
     this._occupyLane(lane, slot);
+    if (this.showcaseJelly) this.exciteJelly(slot.id, 0.24);
     return true;
+  }
+  private _stepJelly(slot: PoolSlot, dt: number): void {
+    if (!this.showcaseJelly) {
+      slot.jellyScaleX = 1;
+      slot.jellyScaleY = 1;
+      slot.jellyVelocity = 0;
+      return;
+    }
+
+    const seconds = dt / 1000;
+    const offset = slot.jellyScaleY - 1;
+    const acceleration = -JELLY_STIFFNESS * offset - JELLY_DAMPING * slot.jellyVelocity;
+    slot.jellyVelocity += acceleration * seconds;
+    const nextY = slot.jellyScaleY + slot.jellyVelocity * seconds;
+    slot.jellyScaleY = Math.max(JELLY_MIN_SCALE, Math.min(JELLY_MAX_SCALE, nextY));
+    slot.jellyScaleX = Math.max(JELLY_MIN_SCALE, Math.min(JELLY_MAX_SCALE, 2 - slot.jellyScaleY));
+
+    if (Math.abs(slot.jellyScaleY - 1) < 0.0005 && Math.abs(slot.jellyVelocity) < 0.0005) {
+      slot.jellyScaleX = 1;
+      slot.jellyScaleY = 1;
+      slot.jellyVelocity = 0;
+    }
   }
 
   private _spawnOne(presetId: PresetId, lane: number): boolean {
@@ -302,6 +341,7 @@ export class Scheduler {
     slot.width = measureWidth(text, fontSize);
     slot.x = this.stageWidth + 20;
     this._occupyLane(lane, slot);
+    if (this.showcaseJelly) this.exciteJelly(slot.id, 0.24);
     return true;
   }
 
