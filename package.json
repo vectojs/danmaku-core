@@ -1,7 +1,7 @@
 {
   "name": "@vectojs/danmaku-core",
-  "version": "0.1.0",
-  "description": "Pure danmaku (barrage) engine primitives \u2014 object pool, kinematic lane scheduler, motion presets, and timeline track \u2014 renderer-agnostic and zero-dependency.",
+  "version": "0.2.0",
+  "description": "Pure danmaku (barrage) engine primitives — object pool, kinematic lane scheduler, motion presets, and timeline track — renderer-agnostic and zero-dependency.",
   "license": "MIT",
   "publishConfig": {
     "access": "public"

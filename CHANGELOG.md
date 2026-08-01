@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0
+
+### Minor Changes
+
+- ea5c9bc: Add reusable Jelly spring state, deterministic scheduler integration, and explicit impulse control for renderer-agnostic squash/stretch effects.
+
 ## 0.1.0
 
 ### Minor Changes
