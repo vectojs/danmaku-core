@@ -40,6 +40,12 @@ export interface PoolSlot {
   opacity: number;
   age: number;
   lane: number;
+  /** Horizontal squash/stretch multiplier resolved by the Jelly spring. */
+  jellyScaleX: number;
+  /** Vertical squash/stretch multiplier resolved by the Jelly spring. */
+  jellyScaleY: number;
+  /** Vertical spring velocity; horizontal scale is derived inversely. */
+  jellyVelocity: number;
   /** Per-character rotation offsets for the `rotation` preset. */
   charAngles: Float64Array;
   /**
