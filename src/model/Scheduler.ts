@@ -13,8 +13,8 @@ export interface SchedulerOptions {
   textSampler?: () => string;
 }
 
-const LINE_HEIGHT = 36;
-const LANE_GAP = 4;
+const VERTICAL_BAND_PX = 4;
+const VERTICAL_GAP_PX = 2;
 const DEFAULT_SPAWN_RATE = 300;
 const LANE_SAFETY_MARGIN = 1.3;
 const JELLY_STIFFNESS = 180;
@@ -23,16 +23,17 @@ const JELLY_MAX_OFFSET = 0.32;
 const JELLY_MIN_SCALE = Math.round((1 - JELLY_MAX_OFFSET) * 100) / 100;
 const JELLY_MAX_SCALE = Math.round((1 + JELLY_MAX_OFFSET) * 100) / 100;
 const JELLY_IMPULSE_SCALE = 12;
+const CULL_MARGIN = 200;
+const MIN_SPAWN_GAP = 50;
+const REPULSION_VERTICAL_OUTSET = 6;
 
-interface LaneState {
+interface BandState {
   occupied: boolean;
-  /** Trailing edge position:
-   *  scroll/glitch/sine: left edge (slot.x) — what a following danmaku approaches
-   *  reverse: right edge (slot.x + slot.width) */
-  trailingX: number;
-  /** Width of the current occupant in px */
-  width: number;
-  /** Speed in px/s */
+  /** Fixed top/bottom content or incompatible overflow blocks reuse. */
+  blocked: boolean;
+  /** Right edge for left-moving content; left edge for reverse content. */
+  entryEdge: number;
+  /** Speed of the occupant nearest the candidate's entry edge. */
   speed: number;
   isReverse: boolean;
 }
@@ -51,14 +52,6 @@ function measureWidth(text: string, fontSize: number): number {
 }
 
 /**
- * Culling margin in px. A danmaku whose slot.x + slot.width < -MARGIN or
- * slot.x > stageWidth + MARGIN is considered off-screen and deactivated.
- * Must match the culling check in tick().
- */
-const CULL_MARGIN = 200;
-const MIN_SPAWN_GAP = 50;
-
-/**
  * Discrete font sizes for stress-spawned danmaku. Kept small on purpose: each
  * distinct size is a separate Canvas2D glyph-cache bucket and a separate
  * `ctx.font` state change, so collapsing the old continuous 16..36 range into
@@ -67,8 +60,8 @@ const MIN_SPAWN_GAP = 50;
  */
 const FONT_TIERS = [18, 24, 30];
 
-function isScrollPreset(preset: PresetId): boolean {
-  return preset === 'scroll' || preset === 'reverse' || preset === 'glitch' || preset === 'sine';
+function isMovingPreset(preset: PresetId): boolean {
+  return preset !== 'top' && preset !== 'bottom';
 }
 
 export class Scheduler {
@@ -77,11 +70,11 @@ export class Scheduler {
   private stageHeight: number;
   private targetCount: number;
   private spawnRate: number;
-  private lanes: LaneState[] = [];
+  private bands: BandState[] = [];
   private spawnAccumulator = 0;
-  private _laneRoundRobin = 0;
+  private _bandRoundRobin = 0;
+  private _showcaseJelly = false;
   showcasePhysics = false;
-  showcaseJelly = false;
   /**
    * "Brush" effects stamped onto each stress-spawned danmaku at creation.
    * Acts like a paint brush: toggling an effect in the panel changes what
@@ -110,13 +103,14 @@ export class Scheduler {
     this.targetCount = targetCount;
     this.spawnRate = DEFAULT_SPAWN_RATE;
     this.textSampler = options.textSampler ?? (() => '');
-    this._computeLanes();
+    this._computeBands();
   }
 
   resize(width: number, height: number): void {
     this.stageWidth = width;
     this.stageHeight = height;
-    this._computeLanes();
+    this._computeBands();
+    this._reflowActiveSlots();
   }
 
   setTargetCount(n: number): void {
@@ -134,10 +128,21 @@ export class Scheduler {
   get rate(): number {
     return this.spawnRate;
   }
+
+  get showcaseJelly(): boolean {
+    return this._showcaseJelly;
+  }
+
+  set showcaseJelly(enabled: boolean) {
+    if (this._showcaseJelly === enabled) return;
+    this._showcaseJelly = enabled;
+    this._reflowActiveSlots();
+  }
+
   exciteJelly(slotId: number, impulse = 0.24): boolean {
     if (slotId < 0 || slotId >= this.pool.capacity) return false;
     const slot = this.pool.slots[slotId]!;
-    if (!slot.active) return false;
+    if (!slot.active || slot.interactionLocked) return false;
     const bounded = Math.max(-1, Math.min(1, impulse));
     slot.jellyVelocity += bounded * JELLY_IMPULSE_SCALE;
     return true;
@@ -168,26 +173,21 @@ export class Scheduler {
       cursorY: cursorState.cursorY,
       pointerActive: cursorState.pointerActive,
     };
-    const W = this.stageWidth;
-    const H = this.stageHeight;
-    const poolSlots = this.pool.slots;
+    const width = this.stageWidth;
+    const height = this.stageHeight;
+    const slots = this.pool.slots;
 
-    for (const ls of this.lanes) {
-      ls.occupied = false;
-    }
+    this._resetBands();
 
-    for (let i = 0; i < poolSlots.length; i++) {
-      const slot = poolSlots[i];
-      if (!slot.active) continue;
+    for (let index = 0; index < slots.length; index++) {
+      const slot = slots[index];
+      if (!slot.active || slot.interactionLocked) continue;
 
       const slotPreset = slot.params.preset || presetId;
       const presetFn = PRESETS[slotPreset] || PRESETS.scroll;
-      if (!slot.paused) {
-        presetFn(slot, dt, state, W, H);
-      }
+      if (!slot.paused) presetFn(slot, dt, state, width, height);
 
       if (this.showcasePhysics) {
-        if (!slot.params.presetParams) slot.params.presetParams = {};
         if (slot.params.presetParams.vy === undefined) {
           slot.params.presetParams.vy = -100 - Math.random() * 200;
           slot.params.presetParams.gravity = 600 + Math.random() * 400;
@@ -195,7 +195,7 @@ export class Scheduler {
         const seconds = dt / 1000;
         slot.params.presetParams.vy += slot.params.presetParams.gravity * seconds;
         slot.y += slot.params.presetParams.vy * seconds;
-        const ground = H - 80;
+        const ground = height - 80;
         if (slot.y > ground) {
           slot.y = ground;
           slot.params.presetParams.vy = -Math.abs(slot.params.presetParams.vy) * 0.7;
@@ -203,41 +203,12 @@ export class Scheduler {
       }
       this._stepJelly(slot, dt);
 
-      if (slot.x + slot.width < -CULL_MARGIN || slot.x > W + CULL_MARGIN) {
-        this.pool.deactivate(i);
+      if (slot.x + slot.width < -CULL_MARGIN || slot.x > width + CULL_MARGIN) {
+        this.pool.deactivate(index);
         continue;
       }
 
-      if (isScrollPreset(slot.params.preset)) {
-        const ls = this.lanes[slot.lane];
-        if (ls) {
-          const isRev = slot.params.preset === 'reverse';
-          const rightEdge = slot.x + slot.width;
-          const leftEdge = slot.x;
-
-          if (!ls.occupied) {
-            ls.occupied = true;
-            ls.isReverse = isRev;
-            ls.trailingX = isRev ? leftEdge : rightEdge;
-            ls.width = slot.width;
-            ls.speed = slot.params.speed;
-          } else {
-            if (isRev) {
-              if (leftEdge < ls.trailingX) {
-                ls.trailingX = leftEdge;
-                ls.width = slot.width;
-                ls.speed = slot.params.speed;
-              }
-            } else {
-              if (rightEdge > ls.trailingX) {
-                ls.trailingX = rightEdge;
-                ls.width = slot.width;
-                ls.speed = slot.params.speed;
-              }
-            }
-          }
-        }
-      }
+      this._occupyBands(slot);
     }
 
     const deficit = this.targetCount - this.pool.activeCount;
@@ -246,10 +217,8 @@ export class Scheduler {
     this.spawnAccumulator += (this.spawnRate * dt) / 1000;
     let spawned = 0;
     while (this.spawnAccumulator >= 1 && spawned < deficit) {
-      const lane = this._assignLane(presetId);
       this.spawnAccumulator -= 1;
-      const didSpawn = this._spawnOne(presetId, lane);
-      if (!didSpawn) break;
+      if (!this._spawnOne(presetId)) break;
       spawned++;
     }
 
@@ -257,27 +226,14 @@ export class Scheduler {
   }
 
   userSpawn(params: DanmakuParams, userSent = false): boolean {
-    const lane = this._assignLane(params.preset);
-    if (lane < 0) return false;
+    const bandStart = this._assignBandStart(params, false);
+    if (bandStart < 0) return false;
     const [slot] = this.pool.activateBatch([params]);
     if (!slot) return false;
-    slot.lane = lane;
-    slot.userSent = userSent;
-    slot.width = measureWidth(params.text, params.fontSize);
-    switch (params.preset) {
-      case 'scroll':
-        slot.x = this.stageWidth + 20;
-        break;
-      case 'reverse':
-        slot.x = -slot.width - 20;
-        break;
-      default:
-        slot.x = this.stageWidth + 20;
-    }
-    this._occupyLane(lane, slot);
-    if (this.showcaseJelly) this.exciteJelly(slot.id, 0.24);
+    this._initializeSlot(slot, bandStart, userSent);
     return true;
   }
+
   private _stepJelly(slot: PoolSlot, dt: number): void {
     if (!this.showcaseJelly) {
       slot.jellyScaleX = 1;
@@ -301,14 +257,10 @@ export class Scheduler {
     }
   }
 
-  private _spawnOne(presetId: PresetId, lane: number): boolean {
+  private _spawnOne(presetId: PresetId): boolean {
     const text = this.textSampler();
     // Quantize to a few discrete font tiers instead of a continuous 16..36
-    // range. Canvas2D re-shapes text on every `ctx.font` change and keeps a
-    // per-(glyph,font) raster cache; with ~21 distinct sizes almost every
-    // glyph is a cache miss, but with a handful of tiers the working set stays
-    // hot. The DanmakuLayer batches draws by tier so `ctx.font` is set only
-    // once per tier per frame. Visual size variety is preserved.
+    // range. Visual size variety remains while the glyph caches stay hot.
     const fontSize = FONT_TIERS[Math.floor(Math.random() * FONT_TIERS.length)];
     const slateColors = [
       '#f8fafc',
@@ -326,145 +278,248 @@ export class Scheduler {
       color,
       fontSize,
       speed: 150 + Math.random() * 150,
-      // Uniform opacity for stress spawns: a per-danmaku random alpha forces a
-      // `ctx.globalAlpha` change before nearly every fillText in the batch
-      // loop, which breaks the Canvas2D text fast path. Fade-out (top/bottom)
-      // still varies alpha, but those run in the low-count special pass.
+      // Uniform opacity avoids a Canvas2D state change per stress-spawned slot.
       opacity: 1,
       preset: presetId,
       presetParams: {},
       effects: { ...this.activeEffects },
     };
+    const bandStart = this._assignBandStart(params, true);
+    if (bandStart < 0) return false;
     const [slot] = this.pool.activateBatch([params]);
     if (!slot) return false;
-    slot.lane = lane;
-    slot.width = measureWidth(text, fontSize);
-    slot.x = this.stageWidth + 20;
-    this._occupyLane(lane, slot);
-    if (this.showcaseJelly) this.exciteJelly(slot.id, 0.24);
+    this._initializeSlot(slot, bandStart, false);
     return true;
   }
 
-  private _occupyLane(
-    lane: number,
-    slot: { x: number; width: number; params: DanmakuParams },
-  ): void {
-    const ls = this.lanes[lane];
-    if (!ls) return;
-    ls.occupied = true;
-    if (isScrollPreset(slot.params.preset)) {
-      ls.trailingX = slot.params.preset === 'reverse' ? slot.x : slot.x + slot.width;
-      ls.width = slot.width;
-      ls.speed = slot.params.speed;
-      ls.isReverse = slot.params.preset === 'reverse';
+  private _initializeSlot(slot: PoolSlot, bandStart: number, userSent: boolean): void {
+    this._setSlotVerticalPlacement(slot, bandStart);
+    slot.userSent = userSent;
+    slot.width = measureWidth(slot.params.text, slot.params.fontSize);
+    switch (slot.params.preset) {
+      case 'reverse':
+        slot.x = -slot.width - 20;
+        break;
+      case 'top':
+      case 'bottom':
+        slot.x = (this.stageWidth - slot.width) / 2;
+        break;
+      default:
+        slot.x = this.stageWidth + 20;
+    }
+    slot.y = slot.baseY;
+    this._occupyBands(slot);
+    if (this.showcaseJelly) this.exciteJelly(slot.id, 0.24);
+  }
+
+  private _setSlotVerticalPlacement(slot: PoolSlot, bandStart: number): void {
+    slot.verticalBandStart = bandStart;
+    slot.verticalBandCount = this._verticalBandCount(slot.params);
+    slot.baseY = bandStart * VERTICAL_BAND_PX + this._verticalBaseOffset(slot.params);
+    // Retained for source compatibility; adaptive presets use baseY directly.
+    slot.lane = bandStart;
+  }
+
+  private _verticalBandCount(params: DanmakuParams): number {
+    const extent = params.fontSize * 1.2 + this._verticalOutset(params) * 2 + VERTICAL_GAP_PX;
+    return Math.max(1, Math.ceil(extent / VERTICAL_BAND_PX));
+  }
+
+  private _verticalBaseOffset(params: DanmakuParams): number {
+    return this._verticalOutset(params) + VERTICAL_GAP_PX / 2;
+  }
+
+  private _verticalOutset(params: DanmakuParams): number {
+    let motion = 0;
+    switch (params.preset) {
+      case 'sine':
+        motion = Math.abs(params.presetParams.amplitude ?? 60);
+        break;
+      case 'rotation':
+        motion = params.fontSize * 0.4;
+        break;
+      case 'glitch':
+        motion = 3;
+        break;
+      case 'repulsion':
+        motion = REPULSION_VERTICAL_OUTSET;
+        break;
+    }
+    let effect = 0;
+    if (params.effects.outline) effect += 2;
+    if (params.effects.glow) effect += 4;
+    const jelly = this.showcaseJelly ? params.fontSize * JELLY_MAX_OFFSET * 0.5 : 0;
+    return Math.ceil(motion + effect + jelly);
+  }
+
+  private _computeBands(): void {
+    const bandCount = Math.max(0, Math.floor(this.stageHeight / VERTICAL_BAND_PX));
+    this.bands = Array.from({ length: bandCount }, () => ({
+      occupied: false,
+      blocked: false,
+      entryEdge: 0,
+      speed: 0,
+      isReverse: false,
+    }));
+    this._bandRoundRobin = bandCount === 0 ? 0 : this._bandRoundRobin % bandCount;
+  }
+
+  private _resetBands(): void {
+    for (let index = 0; index < this.bands.length; index++) {
+      const band = this.bands[index];
+      band.occupied = false;
+      band.blocked = false;
     }
   }
 
-  private _computeLanes(): void {
-    const laneCount = Math.floor(this.stageHeight / (LINE_HEIGHT + LANE_GAP));
-    this.lanes = Array.from({ length: laneCount });
-    for (let i = 0; i < laneCount; i++) {
-      this.lanes[i] = {
-        occupied: false,
-        trailingX: 0,
-        width: 0,
-        speed: 0,
-        isReverse: false,
-      };
+  private _reflowActiveSlots(): void {
+    if (this.bands.length === 0) return;
+    this._resetBands();
+    const slots = this.pool.slots;
+    for (let index = 0; index < slots.length; index++) {
+      const slot = slots[index];
+      if (!slot.active) continue;
+      if (slot.interactionLocked) {
+        const count = this._verticalBandCount(slot.params);
+        const maxStart = Math.max(0, this.bands.length - count);
+        const unclamped = Math.round(
+          (slot.y - this._verticalBaseOffset(slot.params)) / VERTICAL_BAND_PX,
+        );
+        this._setSlotVerticalPlacement(slot, Math.max(0, Math.min(maxStart, unclamped)));
+        continue;
+      }
+      const bandStart = this._assignBandStart(slot.params, this.targetCount > 0);
+      if (bandStart < 0) {
+        this.pool.deactivate(index);
+        continue;
+      }
+      this._setSlotVerticalPlacement(slot, bandStart);
+      slot.y = slot.baseY;
+      this._occupyBands(slot);
     }
+  }
+
+  private _assignBandStart(params: DanmakuParams, allowOverflow: boolean): number {
+    const span = this._verticalBandCount(params);
+    const candidateCount = this.bands.length - span + 1;
+    if (candidateCount <= 0) return -1;
+
+    for (let offset = 0; offset < candidateCount; offset++) {
+      const start = this._candidateStart(params.preset, offset, candidateCount);
+      if (this._isSpanFree(start, span)) {
+        this._advanceRoundRobin(start, span);
+        return start;
+      }
+    }
+
+    if (isMovingPreset(params.preset)) {
+      for (let offset = 0; offset < candidateCount; offset++) {
+        const start = this._candidateStart(params.preset, offset, candidateCount);
+        if (this._isSpanSafe(start, span, params.speed, params.preset === 'reverse')) {
+          this._advanceRoundRobin(start, span);
+          return start;
+        }
+      }
+    }
+
+    if (!allowOverflow) return -1;
+    const start =
+      params.preset === 'bottom'
+        ? candidateCount - 1
+        : params.preset === 'top'
+          ? 0
+          : this._bandRoundRobin % candidateCount;
+    this._advanceRoundRobin(start, span);
+    return start;
+  }
+
+  private _candidateStart(preset: PresetId, offset: number, candidateCount: number): number {
+    if (preset === 'top') return offset;
+    if (preset === 'bottom') return candidateCount - 1 - offset;
+    return (this._bandRoundRobin + offset) % candidateCount;
+  }
+
+  private _advanceRoundRobin(start: number, span: number): void {
+    if (this.bands.length === 0) return;
+    this._bandRoundRobin = (start + span) % this.bands.length;
+  }
+
+  private _isSpanFree(start: number, count: number): boolean {
+    const end = start + count;
+    for (let index = start; index < end; index++) {
+      if (this.bands[index].occupied) return false;
+    }
+    return true;
+  }
+
+  private _isSpanSafe(start: number, count: number, speed: number, isReverse: boolean): boolean {
+    const end = start + count;
+    for (let index = start; index < end; index++) {
+      if (!this._isBandSafe(this.bands[index], speed, isReverse)) return false;
+    }
+    return true;
   }
 
   /**
-   * Kinematic safety check: can a new danmaku (spawned at the entry edge
-   * with speed `newSpeed`) share this lane with the current occupant
-   * without ever visually overlapping?
-   *
-   * Two conditions must hold:
-   *   1. **Minimum gap** — the new spawn's rightward boundary (its nearest
-   *      edge to the moving occupant) must be at least `MIN_SPAWN_GAP` px
-   *      from the occupant's approaching edge at spawn time. This is a hard
-   *      floor that prevents immediate on-top-of rendering.
-   *   2. **Kinematic** — if `newSpeed > ls.speed` (the new one is faster),
-   *      the time it takes for the new to close the gap must exceed the
-   *      occupant's remaining time on stage, scaled by `LANE_SAFETY_MARGIN`.
-   *      If the new is slower or equal-speed, the gap never closes and the
-   *      lane is unconditionally safe (subject to rule 1).
+   * A moving candidate may reuse a vertical band only when it cannot catch the
+   * occupant nearest that entry edge before the occupant leaves the stage.
    */
-  private _isLaneSafe(lane: number, newSpeed: number, isReverse: boolean): boolean {
-    const ls = this.lanes[lane];
-    if (!ls.occupied) return true;
-
-    // Already past culling boundary — treat as free
-    if (isReverse) {
-      if (ls.trailingX - ls.width > this.stageWidth + CULL_MARGIN) return true;
-    } else {
-      if (ls.trailingX + ls.width < -CULL_MARGIN) return true;
-    }
-
-    if (ls.speed <= 0) return false;
+  private _isBandSafe(band: BandState, newSpeed: number, isReverse: boolean): boolean {
+    if (!band.occupied) return true;
+    if (band.blocked || band.isReverse !== isReverse || band.speed <= 0) return false;
 
     let gap: number;
     let exitTime: number;
-
     if (isReverse) {
-      // Both move right. New right edge at -20. Old left edge at trailingX - width.
-      // gap = old left edge - new right edge
-      gap = ls.trailingX - ls.width + 20;
-      exitTime = (this.stageWidth + CULL_MARGIN - (ls.trailingX - ls.width)) / ls.speed;
+      // Candidate right edge is -20; stored edge is the old occupant's left edge.
+      if (band.entryEdge > this.stageWidth + CULL_MARGIN) return true;
+      gap = band.entryEdge + 20;
+      exitTime = (this.stageWidth + CULL_MARGIN - band.entryEdge) / band.speed;
     } else {
-      // Both move left. New left edge at stageWidth + 20. Old right edge at trailingX + width.
-      // gap = new left edge - old right edge
-      gap = this.stageWidth + 20 - (ls.trailingX + ls.width);
-      exitTime = (ls.trailingX + ls.width + CULL_MARGIN) / ls.speed;
+      // Candidate left edge is stageWidth + 20; stored edge is the old right edge.
+      if (band.entryEdge < -CULL_MARGIN) return true;
+      gap = this.stageWidth + 20 - band.entryEdge;
+      exitTime = (band.entryEdge + CULL_MARGIN) / band.speed;
     }
 
-    // Rule 1: minimum spawn gap
     if (gap < MIN_SPAWN_GAP) return false;
-
-    // Rule 2: kinematic — if slower- or equal-speed, they never collide
-    if (newSpeed <= ls.speed) return true;
-
-    const catchTime = gap / (newSpeed - ls.speed);
+    if (newSpeed <= band.speed) return true;
+    const catchTime = gap / (newSpeed - band.speed);
     return catchTime > exitTime * LANE_SAFETY_MARGIN;
   }
 
-  private _assignLane(presetId: PresetId): number {
-    if (
-      presetId === 'top' ||
-      presetId === 'bottom' ||
-      presetId === 'rotation' ||
-      presetId === 'repulsion'
-    ) {
-      return Math.floor(Math.random() * this.lanes.length);
-    }
-    if (this.lanes.length === 0) return -1;
+  private _occupyBands(slot: PoolSlot): void {
+    if (slot.interactionLocked) return;
+    const start = Math.max(0, slot.verticalBandStart);
+    const end = Math.min(this.bands.length, start + slot.verticalBandCount);
+    const moving = isMovingPreset(slot.params.preset);
+    const isReverse = slot.params.preset === 'reverse';
+    const entryEdge = isReverse ? slot.x : slot.x + slot.width;
 
-    const n = this.lanes.length;
-    const isReverse = presetId === 'reverse';
-
-    // Pass 1: free lane (round-robin)
-    for (let k = 0; k < n; k++) {
-      const i = (this._laneRoundRobin + k) % n;
-      if (!this.lanes[i].occupied) {
-        this._laneRoundRobin = (i + 1) % n;
-        return i;
+    for (let index = start; index < end; index++) {
+      const band = this.bands[index];
+      if (!moving) {
+        band.occupied = true;
+        band.blocked = true;
+        continue;
+      }
+      if (!band.occupied) {
+        band.occupied = true;
+        band.blocked = false;
+        band.entryEdge = entryEdge;
+        band.speed = slot.params.speed;
+        band.isReverse = isReverse;
+        continue;
+      }
+      if (band.blocked || band.isReverse !== isReverse) {
+        band.blocked = true;
+        continue;
+      }
+      const nearerEntry = isReverse ? entryEdge < band.entryEdge : entryEdge > band.entryEdge;
+      if (nearerEntry) {
+        band.entryEdge = entryEdge;
+        band.speed = slot.params.speed;
       }
     }
-
-    // Pass 2: lane that passes MIN_SPAWN_GAP + kinematic safety
-    const newSpeed = 150 + Math.random() * 150;
-    for (let k = 0; k < n; k++) {
-      const i = (this._laneRoundRobin + k) % n;
-      if (this._isLaneSafe(i, newSpeed, isReverse)) {
-        this._laneRoundRobin = (i + 1) % n;
-        return i;
-      }
-    }
-
-    // Pass 3: all occupied and no safe slot — round-robin distributes load
-    // evenly so a single hot lane doesn't absorb all overflow
-    const i = this._laneRoundRobin % n;
-    this._laneRoundRobin = (i + 1) % n;
-    return i;
   }
 }

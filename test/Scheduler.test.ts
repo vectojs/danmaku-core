@@ -85,7 +85,7 @@ describe('Scheduler', () => {
     expect(pool.activeCount).toBe(0);
   });
 
-  it('assigns valid lane indices (non-negative, in bounds)', () => {
+  it('assigns adaptive vertical bands within the stage', () => {
     const pool = new DanmakuPool(100);
     const sched = new Scheduler(pool, 1920, 1080, 10);
     for (let i = 0; i < 30; i++) {
@@ -96,9 +96,11 @@ describe('Scheduler', () => {
       });
     }
     for (const slot of pool.slots) {
-      if (slot.active) {
-        expect(slot.lane).toBeGreaterThanOrEqual(0);
-      }
+      if (!slot.active) continue;
+      expect(slot.verticalBandStart).toBeGreaterThanOrEqual(0);
+      expect(slot.verticalBandCount).toBeGreaterThan(0);
+      expect((slot.verticalBandStart + slot.verticalBandCount) * 4).toBeLessThanOrEqual(1080);
+      expect(slot.lane).toBe(slot.verticalBandStart);
     }
   });
 
@@ -125,22 +127,70 @@ describe('Scheduler', () => {
     expect(pool.activeCount).toBeLessThanOrEqual(150);
   });
 
-  it('lane assignment selects safe lanes or falls back gracefully', () => {
+  it('packs mixed font sizes into non-overlapping vertical spans', () => {
+    const pool = new DanmakuPool(4);
+    const sched = new Scheduler(pool, 1000, 120, 0);
+    expect(sched.userSpawn({ ...createDefaultParams(), text: 'small', fontSize: 18 })).toBe(true);
+    expect(sched.userSpawn({ ...createDefaultParams(), text: 'large', fontSize: 30 })).toBe(true);
+
+    const [small, large] = pool.slots;
+    const smallEnd = small.verticalBandStart + small.verticalBandCount;
+    const largeEnd = large.verticalBandStart + large.verticalBandCount;
+    expect(smallEnd <= large.verticalBandStart || largeEnd <= small.verticalBandStart).toBe(true);
+  });
+
+  it('refuses unsafe user overlap when no vertical span remains', () => {
+    const pool = new DanmakuPool(2);
+    const sched = new Scheduler(pool, 1000, 24, 0);
+    const params = { ...createDefaultParams(), text: 'only row', fontSize: 18 };
+    expect(sched.userSpawn(params)).toBe(true);
+    expect(sched.userSpawn({ ...params, contentId: 'second' })).toBe(false);
+    expect(pool.activeCount).toBe(1);
+  });
+
+  it('keeps interaction-locked slots fixed and outside occupancy', () => {
+    const pool = new DanmakuPool(2);
+    const sched = new Scheduler(pool, 1000, 24, 0);
+    const params = { ...createDefaultParams(), text: 'selected', fontSize: 18 };
+    expect(sched.userSpawn(params)).toBe(true);
+    const selected = pool.slots[0]!;
+    selected.interactionLocked = true;
+    const { x, y } = selected;
+
+    sched.tick(100, 'scroll', { cursorX: 0, cursorY: 0, pointerActive: false });
+
+    expect(selected.x).toBe(x);
+    expect(selected.y).toBe(y);
+    expect(sched.userSpawn({ ...params, contentId: 'behind' })).toBe(true);
+  });
+
+  it('keeps explicit stress overflow spawning after safe spans fill', () => {
     const pool = new DanmakuPool(10);
-    const sched = new Scheduler(pool, 1000, 360, 5); // has 9 lanes
-    const lane1 = (sched as any)._assignLane('scroll');
-    expect(lane1).toBeGreaterThanOrEqual(0);
+    const sched = new Scheduler(pool, 1000, 48, 10, { textSampler: () => 'stress' });
+    sched.setSpawnRate(10_000);
 
-    // Occupy all lanes with far-right values to simulate congestion (gap > 800)
-    for (const lane of (sched as any).lanes) {
-      lane.occupied = true;
-      lane.lastX = 900; // stageWidth is 1000, minGap is 200 => 900 > 800 (congested)
+    const spawned = sched.tick(1, 'scroll', {
+      cursorX: 0,
+      cursorY: 0,
+      pointerActive: false,
+    });
+
+    expect(spawned).toBe(10);
+    expect(pool.activeCount).toBe(10);
+  });
+
+  it('reflows or removes active spans that no longer fit after resize', () => {
+    const pool = new DanmakuPool(4);
+    const sched = new Scheduler(pool, 1000, 120, 0);
+    sched.userSpawn({ ...createDefaultParams(), text: 'small', fontSize: 18 });
+    sched.userSpawn({ ...createDefaultParams(), text: 'large', fontSize: 30 });
+
+    sched.resize(1000, 60);
+
+    for (const slot of pool.slots) {
+      if (!slot.active) continue;
+      expect((slot.verticalBandStart + slot.verticalBandCount) * 4).toBeLessThanOrEqual(60);
     }
-
-    // Congested lanes should trigger fallback behavior
-    const fallbackLane = (sched as any)._assignLane('scroll');
-    expect(fallbackLane).toBeGreaterThanOrEqual(0);
-    expect(fallbackLane).toBeLessThan((sched as any).lanes.length);
   });
   it('excites and settles Jelly state deterministically', () => {
     const pool = new DanmakuPool(1);

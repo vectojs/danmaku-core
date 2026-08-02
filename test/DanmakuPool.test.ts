@@ -105,6 +105,23 @@ describe('DanmakuPool', () => {
     pool.reset();
     expect(pool.activeCount).toBe(0);
   });
+  it('resets adaptive placement, identity, and interaction lock on recycle', () => {
+    const pool = new DanmakuPool(1);
+    const [slot] = pool.activateBatch([{ ...makeParams('selected'), contentId: 'video:comment' }]);
+    slot!.baseY = 42;
+    slot!.verticalBandStart = 10;
+    slot!.verticalBandCount = 8;
+    slot!.interactionLocked = true;
+    pool.deactivate(slot!.id);
+
+    const [recycled] = pool.activateBatch([makeParams('replacement')]);
+    expect(recycled!.params.contentId).toBeUndefined();
+    expect(recycled!.baseY).toBe(0);
+    expect(recycled!.verticalBandStart).toBe(0);
+    expect(recycled!.verticalBandCount).toBe(0);
+    expect(recycled!.interactionLocked).toBe(false);
+  });
+
   it('initializes Jelly spring state at rest', () => {
     const pool = new DanmakuPool(1);
     const slot = pool.slots[0]!;

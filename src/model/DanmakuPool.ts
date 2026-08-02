@@ -87,6 +87,10 @@ export class DanmakuPool {
     s.params = createDefaultParams();
     s.x = 0;
     s.y = 0;
+    s.baseY = 0;
+    s.verticalBandStart = 0;
+    s.verticalBandCount = 0;
+    s.interactionLocked = false;
     s.width = 0;
     s.rotation = 0;
     s.opacity = 1;
@@ -109,6 +113,9 @@ export class DanmakuPool {
       params: createDefaultParams(),
       x: 0,
       y: 0,
+      baseY: 0,
+      verticalBandStart: 0,
+      verticalBandCount: 0,
       width: 0,
       rotation: 0,
       opacity: 1,

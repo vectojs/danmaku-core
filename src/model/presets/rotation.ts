@@ -1,9 +1,9 @@
 import type { PresetFn } from '../types';
 
-export const rotation: PresetFn = (slot, dt, _state, _stageWidth, stageHeight) => {
+export const rotation: PresetFn = (slot, dt, _state, _stageWidth) => {
   const seconds = dt / 1000;
   slot.x -= slot.params.speed * seconds;
-  slot.y = stageHeight * 0.5;
+  slot.y = slot.baseY;
   slot.age += dt;
   const len = slot.params.text.length;
   for (let i = 0; i < len && i < slot.charAngles.length; i++) {
