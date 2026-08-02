@@ -1,9 +1,9 @@
 import type { PresetFn } from '../types';
 
-export const bottom: PresetFn = (slot, dt, _state, stageWidth, stageHeight) => {
+export const bottom: PresetFn = (slot, dt, _state, stageWidth) => {
   slot.age += dt;
   slot.x = (stageWidth - slot.width) / 2;
-  slot.y = stageHeight - 24;
+  slot.y = slot.baseY;
   slot.rotation = 0;
 
   // Stay for 3s, fade out over 1s, then move offscreen to trigger deactivation

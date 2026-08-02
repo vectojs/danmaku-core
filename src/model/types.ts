@@ -11,6 +11,8 @@ export type PresetId =
 export type ShowcasePresetId = 'physics' | 'jelly';
 
 export interface DanmakuParams {
+  /** Stable consumer-owned identity used to associate local interaction state. */
+  contentId?: string;
   text: string;
   color: string;
   fontSize: number;
@@ -35,6 +37,14 @@ export interface PoolSlot {
   params: DanmakuParams;
   x: number;
   y: number;
+  /** Neutral text-box top assigned by the scheduler's vertical allocator. */
+  baseY: number;
+  /** First 4px vertical band reserved for this slot. */
+  verticalBandStart: number;
+  /** Number of contiguous vertical bands reserved for motion and effects. */
+  verticalBandCount: number;
+  /** Freezes motion and removes the slot from allocator/physics influence. */
+  interactionLocked?: boolean;
   width: number;
   rotation: number;
   opacity: number;
@@ -80,6 +90,8 @@ export type PresetFn = (
 export interface TimedDanmakuEntry {
   /** Video time in seconds at which this danmaku should appear. */
   time: number;
+  /** Stable consumer-owned identity propagated into the active pool slot. */
+  contentId?: string;
   text: string;
   color?: string;
   fontSize?: number;

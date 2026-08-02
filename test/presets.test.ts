@@ -9,6 +9,9 @@ function makeSlot(): PoolSlot {
     params: { ...createDefaultParams(), text: 'Hello' },
     x: 500,
     y: 100,
+    baseY: 100,
+    verticalBandStart: 0,
+    verticalBandCount: 8,
     width: 120,
     rotation: 0,
     opacity: 1,
@@ -43,17 +46,18 @@ describe('presets', () => {
     expect(s.x).toBeGreaterThan(500);
   });
 
-  it('top fixes at center x', () => {
+  it('top centers horizontally at its allocated vertical position', () => {
     const s = makeSlot();
     PRESETS.top(s, 16, state, W, H);
     expect(s.x).toBe((W - s.width) / 2);
-    expect(s.y).toBe(24);
+    expect(s.y).toBe(s.baseY);
   });
 
-  it('bottom fixes near bottom', () => {
+  it('bottom centers horizontally at its allocated vertical position', () => {
     const s = makeSlot();
     PRESETS.bottom(s, 16, state, W, H);
-    expect(s.y).toBe(H - 24);
+    expect(s.x).toBe((W - s.width) / 2);
+    expect(s.y).toBe(s.baseY);
   });
 
   it('sine oscillates y', () => {
