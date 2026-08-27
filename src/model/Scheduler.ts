@@ -390,7 +390,20 @@ export class Scheduler {
       }
       const bandStart = this._assignBandStart(slot.params, this.targetCount > 0);
       if (bandStart < 0) {
-        this.pool.deactivate(index);
+        // P2-3: resize must not silently drop visible danmaku. Keep the slot
+        // at a clamped fallback instead of deactivating (requeue/keep contract).
+        const count = this._verticalBandCount(slot.params);
+        const maxStart = Math.max(0, this.bands.length - count);
+        const fallback = Math.max(0, Math.min(slot.verticalBandStart, maxStart));
+        this._setSlotVerticalPlacement(slot, fallback);
+        // Preserve mid-flight y for moving presets; clamp inside stage.
+        const minY = this._verticalBaseOffset(slot.params);
+        const maxY = Math.max(
+          minY,
+          this.stageHeight - slot.params.fontSize * 1.2 - this._verticalBaseOffset(slot.params),
+        );
+        slot.y = Math.max(minY, Math.min(slot.y, maxY));
+        this._occupyBands(slot);
         continue;
       }
       this._setSlotVerticalPlacement(slot, bandStart);
