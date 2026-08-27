@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.2
+
+### Patch Changes
+
+- fix(pool): make `charAngles` lazy to save 5 MB at 10k / 10 MB at 20k — `DanmakuPool` no longer eagerly allocates `Float64Array(64)` per slot; allocation happens on first `rotation` tick only (no profile uses `rotation` after CTX-0044) and `_resetSlot` skips clearing when absent (CTX-0054).
+
+- fix(scheduler): dedupe `measureText` when Bakudan typography patched — `Scheduler._initializeSlot` skips its `sans-400` `measureWidth` when `_getBakudanTypography` is present (Bakudan sets width once via cached `measureText`); saves ~1.3k wasted measures/s at 10k and fixes band placement width error (CTX-0055).
+
 ## 0.3.1
 
 ### Patch Changes
