@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1
+
+### Patch Changes
+
+- keep visible danmaku on resize instead of silent drop — \_reflowActiveSlots now clamps to fallback band and preserves slot.y instead of pool.deactivate when \_assignBandStart fails (CTX-0039 P2-3, 43ed7e0 band packing).
+
 ## 0.3.0
 
 ### Minor Changes
