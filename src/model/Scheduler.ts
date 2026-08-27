@@ -295,7 +295,12 @@ export class Scheduler {
   private _initializeSlot(slot: PoolSlot, bandStart: number, userSent: boolean): void {
     this._setSlotVerticalPlacement(slot, bandStart);
     slot.userSent = userSent;
-    slot.width = measureWidth(slot.params.text, slot.params.fontSize);
+    // CTX-0055: dedupe measureText — when Bakudan has patched typography, skip sans-400 measure; App sets width once via cache
+    if ((this as unknown as { _getBakudanTypography?: unknown })._getBakudanTypography) {
+      slot.width = slot.params.text.length * slot.params.fontSize * 0.6 + 4;
+    } else {
+      slot.width = measureWidth(slot.params.text, slot.params.fontSize);
+    }
     switch (slot.params.preset) {
       case 'reverse':
         slot.x = -slot.width - 20;
