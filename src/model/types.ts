@@ -56,8 +56,11 @@ export interface PoolSlot {
   jellyScaleY: number;
   /** Vertical spring velocity; horizontal scale is derived inversely. */
   jellyVelocity: number;
-  /** Per-character rotation offsets for the `rotation` preset. */
-  charAngles: Float64Array;
+  /**
+   * Per-character rotation offsets for the `rotation` preset.
+   * CTX-0054: lazy — rotation removed from DanmakuLayer and no profile uses it, so the eager Float64Array(64) per slot wasted ~5MB at 10k (512B×10k) and ~10MB at 20k. Allocated only when rotation preset runs.
+   */
+  charAngles?: Float64Array;
   /**
    * Per-danmaku interaction state. Lives on the slot (not on a scene Entity)
    * so the whole stress pool renders through a single batch-painting

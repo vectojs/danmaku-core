@@ -72,7 +72,9 @@ describe('presets', () => {
     const s = makeSlot();
     s.params.text = 'ABCD';
     PRESETS.rotation(s, 100, state, W, H);
-    const hasNonZero = Array.from(s.charAngles.slice(0, 4)).some((a) => a !== 0);
+    const hasNonZero = Array.from((s.charAngles ?? new Float64Array(64)).slice(0, 4)).some(
+      (a) => a !== 0,
+    );
     expect(hasNonZero).toBe(true);
   });
 

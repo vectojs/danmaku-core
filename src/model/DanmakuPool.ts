@@ -103,7 +103,11 @@ export class DanmakuPool {
     s.liked = false;
     s.dragging = false;
     s.userSent = false;
-    for (let i = 0; i < s.charAngles.length; i++) s.charAngles[i] = 0;
+    // CTX-0054: charAngles is lazy — only rotation needs it and no profile uses rotation now; avoid clearing 64 doubles per recycle (20k×64 = 1.28M writes per reset).
+    if (s.charAngles) {
+      for (let i = 0; i < s.charAngles.length; i++) s.charAngles[i] = 0;
+      // Keep allocation for reuse; do not delete — rotation's working set stays hot.
+    }
   }
 
   private _createEmptySlot(id: number): PoolSlot {
@@ -124,7 +128,7 @@ export class DanmakuPool {
       jellyScaleX: 1,
       jellyScaleY: 1,
       jellyVelocity: 0,
-      charAngles: new Float64Array(64),
+      // CTX-0054: lazy — no eager Float64Array(64) (5MB at 10k). Allocated on first rotation tick.
     };
   }
 }
